@@ -1,0 +1,4 @@
+openai
+googlesearch-python
+beautifulsoup4
+flask
