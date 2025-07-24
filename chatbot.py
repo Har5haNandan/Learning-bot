@@ -34,3 +34,6 @@ def get_answer(query):
     response = ask_chatgpt(prompt)
     context.add(query, response)
     return response, sources
+
+if __name__ == "__main__":
+    run_chatbot()
