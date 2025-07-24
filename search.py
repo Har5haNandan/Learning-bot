@@ -1,29 +1,23 @@
+
 import requests
 from bs4 import BeautifulSoup
 
-def google_search(query):
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    url = f"https://www.google.com/search?q={query.replace(' ', '+')}&num=5"
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(f"Search error: {e}")
-        return []
-
-    soup = BeautifulSoup(response.text, "html.parser")
+def google_search(query, max_results=3):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    url = f"https://html.duckduckgo.com/html/?q={query}"
     results = []
 
-    for g in soup.find_all('div', class_='tF2Cxc'):
-        title = g.find('h3')
-        link = g.find('a')
-        if title and link:
-            results.append({
-                'title': title.text,
-                'link': link['href']
-            })
+    try:
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, "html.parser")
+        links = soup.find_all("a", {"class": "result__a"}, limit=max_results)
+
+        for link in links:
+            href = link.get("href")
+            if href:
+                results.append(href)
+    except Exception as e:
+        results.append(f"Search error: {str(e)}")
 
     return results
+
