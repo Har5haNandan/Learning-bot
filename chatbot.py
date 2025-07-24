@@ -1,83 +1,69 @@
 import os
-import openai
-import requests
-from bs4 import BeautifulSoup
+from openai import OpenAI
 from dotenv import load_dotenv
+from search import google_search  # Your scraper-based search function
+import time
 
-# Load API keys from .env
+# Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
-def search_google(query):
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Conversation history
+conversation_history = []
+
+def get_chatgpt_response(user_query, context=[]):
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-        response = requests.get(
-            f"https://www.google.com/search?q={query}",
-            headers=headers,
-            timeout=5
+        messages = [{"role": "system", "content": "You are a helpful and accurate AI assistant that helps people learn AWS with real-time information and citations."}]
+        for entry in context:
+            messages.append({"role": "user", "content": entry["user"]})
+            messages.append({"role": "assistant", "content": entry["bot"]})
+        messages.append({"role": "user", "content": user_query})
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0.5
         )
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        results = []
-
-        for g in soup.find_all('div', class_='tF2Cxc')[:3]:  # Top 3 results
-            title_tag = g.find('h3')
-            link_tag = g.find('a')
-            if title_tag and link_tag:
-                title = title_tag.get_text()
-                link = link_tag['href']
-                results.append(f"{title}: {link}")
-
-        return results if results else ["No search results found."]
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        return [f"Error while searching: {str(e)}"]
+        return f"ChatGPT API error: {e}"
 
-def ask_chatgpt(prompt):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Or "gpt-4" if you have access
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response['choices'][0]['message']['content'].strip()
-    except Exception as e:
-        return f"ChatGPT API error: {str(e)}"
+def format_sources(results):
+    if not results:
+        return "- No search results found."
+    return "\n".join([f"- {res['title']}: {res['link']}" for res in results[:3]])
 
-def run_chatbot():
-    print("🧠 AWS Learning Chatbot (with Google Search)")
-    print("Type 'exit' to quit.\n")
-
-    chat_history = []
-
+def chatbot():
+    print("AWS Learning Chatbot (type 'exit' to quit)\n")
     while True:
-        user_input = input("You: ")
-        if user_input.lower() in ['exit', 'quit']:
+        user_input = input("You: ").strip()
+        if user_input.lower() == 'exit':
             print("Goodbye!")
             break
 
-        # Step 1: Search Google
-        search_results = search_google(user_input)
-        search_summary = "\n".join(search_results)
+        print("\n🔎 Searching online...\n")
+        search_results = google_search(user_input)
+        sources = format_sources(search_results)
 
-        # Step 2: Send both user input + search to ChatGPT
-        prompt = (
-            f"The user asked: '{user_input}'\n\n"
-            f"Here are some search results from Google:\n{search_summary}\n\n"
-            "Now provide a helpful and clear response tailored for AWS learners."
-        )
+        print("💬 Generating answer...\n")
+        time.sleep(1)  # Simulate thinking
 
-        response = ask_chatgpt(prompt)
+        # Add sources to user query as context
+        search_context = "\n\nSources:\n" + "\n".join([res['link'] for res in search_results[:3]])
+        full_prompt = f"{user_input}\n\nUse these sources to help:\n{search_context}"
 
-        # Save to history
-        chat_history.append({"user": user_input, "bot": response})
+        bot_reply = get_chatgpt_response(full_prompt, conversation_history)
 
-        # Print response
-        print(f"\n🤖 Bot:\n{response}\n")
-        print("🔎 Sources:")
-        for res in search_results:
-            print(" -", res)
-        print("\n---\n")
+        conversation_history.append({
+            "user": user_input,
+            "bot": bot_reply
+        })
+
+        print(f"🤖 Bot:\n{bot_reply}\n")
+        print(f"🔎 Sources:\n{sources}\n")
+        print("---\n")
 
 if __name__ == "__main__":
-    run_chatbot()
+    chatbot()
