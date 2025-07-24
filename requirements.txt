@@ -1,4 +1,3 @@
-openai
-googlesearch-python
-beautifulsoup4
-flask
+python-dotenv
+google-generativeai
+duckduckgo-search
