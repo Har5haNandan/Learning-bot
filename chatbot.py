@@ -1,69 +1,57 @@
 import os
-from openai import OpenAI
 from dotenv import load_dotenv
-from search import google_search 
-import time
+from search import google_search
+import google.generativeai as genai
 
-# Load environment variables
+# Load .env variables
 load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Gemini model name (must include full path for v1beta)
+MODEL_NAME = "gemini-1.5-flash"
 
-# Conversation history
-conversation_history = []
-
-def get_chatgpt_response(user_query, context=[]):
+def get_answer_from_gemini(question, web_results):
     try:
-        messages = [{"role": "system", "content": "You are a helpful and accurate AI assistant that helps people learn AWS with real-time information and citations."}]
-        for entry in context:
-            messages.append({"role": "user", "content": entry["user"]})
-            messages.append({"role": "assistant", "content": entry["bot"]})
-        messages.append({"role": "user", "content": user_query})
+        context_text = "\n".join([f"{i+1}. {r}" for i, r in enumerate(web_results)]) or "No context found."
+        prompt = f"""Answer the following question using the context below:
+        ---
+        Question: {question}
+        ---
+        Context:
+        {context_text}
+        ---
+        Provide a clear, helpful answer for someone learning AWS."""
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.5
-        )
-        return response.choices[0].message.content.strip()
+        model = genai.GenerativeModel(MODEL_NAME)
+        response = model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
-        return f"ChatGPT API error: {e}"
+        return f"Gemini API error: {str(e)}"
 
-def format_sources(results):
-    if not results:
-        return "- No search results found."
-    return "\n".join([f"- {res['title']}: {res['link']}" for res in results[:3]])
-
-def chatbot():
-    print("AWS Learning Chatbot (type 'exit' to quit)\n")
+def main():
+    print("🧠 AWS Learning Chatbot (type 'exit' to quit)\n")
     while True:
-        user_input = input("You: ").strip()
-        if user_input.lower() == 'exit':
-            print("Goodbye!")
+        user_input = input("You: ")
+        if user_input.lower() == "exit":
             break
 
-        print("\n🔎 Searching online...\n")
+        print("\n🔎 Searching online...")
         search_results = google_search(user_input)
-        sources = format_sources(search_results)
 
-        print("💬 Generating answer...\n")
-        time.sleep(1)  # Simulate thinking
+        print("\n💬 Generating answer...\n")
+        answer = get_answer_from_gemini(user_input, search_results)
 
-        # Add sources to user query as context
-        search_context = "\n\nSources:\n" + "\n".join([res['link'] for res in search_results[:3]])
-        full_prompt = f"{user_input}\n\nUse these sources to help:\n{search_context}"
+        print("🤖 Bot:")
+        print(answer)
 
-        bot_reply = get_chatgpt_response(full_prompt, conversation_history)
-
-        conversation_history.append({
-            "user": user_input,
-            "bot": bot_reply
-        })
-
-        print(f"🤖 Bot:\n{bot_reply}\n")
-        print(f"🔎 Sources:\n{sources}\n")
-        print("---\n")
+        print("\n🔎 Sources:")
+        if search_results:
+            for result in search_results:
+                print(f"- {result}")
+        else:
+            print("- No search results found.")
+        print("\n---\n")
 
 if __name__ == "__main__":
-    chatbot()
+    main()
+
