@@ -1,7 +1,7 @@
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
-from search import google_search  # Your scraper-based search function
+from search import google_search 
 import time
 
 # Load environment variables
